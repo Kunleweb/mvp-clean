@@ -1,0 +1,20 @@
+{
+    "rules": [
+        { "pattern": ".*price.*|open_price|high_price|low_price|close_price", "type": "float64" },
+        { "pattern": ".*amount.*", "type": "float64" },
+        { "pattern": ".*name.*", "type": "string" },
+        { "pattern": ".*id.*", "type": "int64" },
+        { "pattern": ".*count.*", "type": "int64" },
+        { "pattern": ".*date.*", "type": "datetime64" },
+        { "pattern": ".*email.*", "type": "string" },
+        { "pattern": ".*qty.*|.*quantity.*", "type": "int64" },
+        { "pattern": "volume", "type": "int64" }
+    ],
+    "global_defaults": {
+        "expect_column_values_to_not_be_null": true
+    },
+    "quality_gate": {
+        "min_score": 70.0,
+        "action": "warn"
+    }
+}

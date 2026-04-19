@@ -1,0 +1,20 @@
+{
+    "column_aliases": {
+        "ADD_SOURCE_COLUMN_NAME_HERE": "your_standard_name_here"
+    },
+    "value_maps": {
+        "country": {
+            "uk":             "GB",
+            "united kingdom": "GB",
+            "usa":            "US",
+            "united states":  "US",
+            "us":             "US"
+        },
+        "grade": {
+            "a+": "A+", "a": "A",
+            "b+": "B+", "b": "B",
+            "c+": "C+", "c": "C",
+            "d":  "D",  "f": "F"
+        }
+    }
+}

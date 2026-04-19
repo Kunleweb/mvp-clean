@@ -1,0 +1,11 @@
+node_modules
+venv
+.git
+.next
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.db
+metadata.db
+data/
