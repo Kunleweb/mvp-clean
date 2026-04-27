@@ -137,8 +137,8 @@ python -c "from models import Base, engine; Base.metadata.create_all(engine)"
 
 # Start the FastAPI server
 python api.py
-# API available at http://localhost:8000
-# Interactive docs at http://localhost:8000/docs
+
+# API available at http://localhost:8000/docs
 ```
 
 ### Worker Setup
