@@ -15,44 +15,42 @@ The framework is built on a decoupled architecture using FastAPI for API routing
 
 ## Component Deep Dive
 
-### 1. Ingestion Gateway (`api.py`)
-The FastAPI application serves as the entry point for all data and management operations.
-*   **File Streaming**: Handles multi-part uploads and streams files directly to AWS S3. It enforces size limits (1MB default) and organizes files by extension into specific S3 prefixes (`uploads/csv/`, `uploads/documents/`, etc.).
-*   **External Integration**: Includes adapters for external APIs (e.g., Alpha Vantage). These adapters fetch JSON data, serialize it, and store it in S3 before triggering the processing pipeline.
-*   **Job Tracking**: Communicates with the Redis backend via `AsyncResult` to provide real-time status updates to the frontend for background tasks.
-*   **Data Explorer API**: Provides endpoints to read raw S3 data, convert it to JSON for the frontend grid, and overwrite S3 objects when manual edits are committed.
+### 1. Ingestion Layer
+The entry point for all data operations, managing the lifecycle of incoming datasets from various sources.
+*   **Data Streaming**: Facilitates secure multi-part uploads directly to cloud storage. It implements strict validation on file sizes and automatically categorizes assets into organized storage prefixes based on format.
+*   **External Connectivity**: Includes specialized adapters for third-party APIs. These components fetch external data, serialize the payloads, and persist them to the landing zone before initiating the processing pipeline.
+*   **Asynchronous Tracking**: Interfaces with the message broker to provide real-time updates on background task progression.
+*   **Data Access Interface**: Provides high-performance endpoints for reading raw storage objects and converting them into structured formats for interactive exploration.
 
-### 2. Orchestration Engine (`worker.py`)
-A distributed Celery worker that manages the "CLEAN" lifecycle for every ingested file.
-*   **State Management**: Updates task metadata at every stage (Downloading, Extracting, Validating) to provide granular feedback in the UI.
-*   **Pipeline Routing**: Detects file types. If a document (PDF/Image) is detected, it routes the file to the LandingAI client. If structured (CSV/JSON), it skips directly to alignment.
-*   **Transactional Commits**: Records a `ScanRun` for every execution, ensuring that failures are logged and system state remains consistent.
+### 2. Task Orchestration
+A distributed processing system that manages the lifecycle of ingested files across a scalable worker cluster.
+*   **State Management**: Tracks and broadcasts the status of each pipeline stage: from initial download to final validation: ensuring end-to-end observability.
+*   **Dynamic Routing**: Automatically detects file types to determine the optimal processing path. Unstructured documents are routed through vision-based extraction, while structured datasets proceed directly to alignment.
+*   **Transaction Integrity**: Ensures every execution is recorded, maintaining a consistent state and logging failures for rapid troubleshooting.
 
-### 3. Extraction & Alignment (`data_platform/extraction/`)
-*   **LandingAI ADE Client**: A REST wrapper for LandingAI's vision models. It uses Pydantic schemas (e.g., `InvoiceSchema`, `UtilityBillSchema`) to extract key-value pairs and tabular data from unstructured sources. It also captures raw text as Markdown for full-text search capabilities.
-*   **Schema Hashing (`schema.py`)**: Generates an MD5 hash of the field names, types, and nullability. If a file hash (for documents) or a schema hash (for data) matches a previous snapshot, the system avoids redundant, expensive extraction steps.
-*   **ALIGN Layer (`tidier.py`)**: A pandas-based transformation module. It performs:
-    *   **Date Normalization**: Heuristic-based conversion of string dates to ISO-8601.
-    *   **Column Aliasing**: Maps legacy or API-specific field names (e.g., `1. open`) to standardized internal names (`open_price`) using `column_alias.json`.
-    *   **Value Mapping**: Semantic normalization using dictionaries to map inconsistent values (e.g., `UK` -> `GB`).
+### 3. Data Extraction & Alignment
+The core transformation engine that converts raw inputs into standardized datasets.
+*   **Intelligent Parsing**: Utilizes vision models to extract structured key-value pairs and tabular data from unstructured sources. It also generates searchable text artifacts to facilitate full-text indexing.
+*   **Structural Optimization**: Employs hashing algorithms to detect structural consistency. If a dataset's structure remains unchanged, the system optimizes performance by utilizing cached metadata.
+*   **Normalization Engine**: A multi-stage transformation module that performs heuristic date standardization, column aliasing to match internal naming conventions, and semantic value mapping to ensure consistency across the data lake.
 
-### 4. Validation Engine (`quality.py`)
-Powered by **Great Expectations (GX)**, this component performs rigorous data quality checks.
-*   **Dynamic Suite Generation**: Instead of static files, the engine generates an expectation suite in memory based on the inferred schema. It automatically adds expectations for column existence, type compliance, and non-null constraints.
-*   **Statistical Analysis**: Implements Z-score detection to identify numeric outliers where |z| > 3.
-*   **Heuristic Null Detection**: Uses regular expressions to identify "hidden" nulls like whitespace-only strings or placeholders (e.g., "n/a", "null").
-*   **Quality Gating**: Assigns a rank (A-D) based on the success ratio and can be configured to "warn" or "reject" assets that fall below a specific threshold.
+### 4. Validation & Quality Control
+A rigorous quality assurance engine that enforces data integrity and compliance.
+*   **Dynamic Rule Generation**: Automatically constructs validation suites in memory based on the detected dataset structure, ensuring rules remain aligned with the data without manual intervention.
+*   **Statistical Analysis**: Implements advanced outlier detection to identify values that deviate significantly from expected statistical norms.
+*   **Structural Integrity Checks**: Uses pattern matching to identify missing values, whitespace-only fields, and non-standard placeholders that would otherwise bypass traditional null checks.
+*   **Quality Gating**: Evaluates assets against configurable thresholds, assigning health ranks and determining whether a dataset should be rejected or flagged for manual review.
 
-### 5. Governance & Audit (`models.py`)
-The metadata layer is stored in PostgreSQL and tracked via SQLAlchemy models.
-*   **Asset Revisioning**: The `AssetRevision` table records every manual override. It stores the editor's name, the reason for the change, and a reference to the specific S3 version created.
-*   **Schema Evolution**: The `SchemaSnapshot` and `SchemaField` tables store a versioned history of every asset's structure, allowing the system to detect and report schema drift.
+### 5. Data Governance & Audit
+The persistence and compliance layer that maintains a complete history of the data landscape.
+*   **Change Tracking**: Records an immutable audit trail of every manual data modification, including the identity of the editor and the justification for the change.
+*   **Metadata Versioning**: Maintains a versioned history of every asset's structure, enabling the detection and reporting of structural changes over time.
 
-### 6. Frontend Dashboard (`clean-frontend/`)
-A Next.js 14 application built with a focus on live observability.
-*   **Live Status Polling**: Uses a recursive polling mechanism to track Celery job IDs and update progress bars in real-time.
-*   **Interactive Grid**: A custom-built data grid that allows users to edit cells directly. It handles the serialization of edits back to the API.
-*   **Visual Analytics**: Uses **Recharts** to visualize quality trends over time and asset health distributions.
+### 6. Observability Interface
+A responsive dashboard designed for real-time monitoring and interactive data management.
+*   **Pipeline Visualization**: Provides a recursive status-tracking interface that allows users to monitor the health of ingestion tasks as they progress.
+*   **Interactive Exploration**: Features a custom-built data grid that enables direct cell editing with integrated serialization back to the core storage layer.
+*   **Analytical Reporting**: Leverages integrated visualization tools to present quality trends and health distributions across all registered data assets.
 
 ---
 
