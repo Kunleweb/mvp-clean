@@ -47,6 +47,8 @@ class QualityDrilldownResponse(BaseModel):
     duplicate_rows: int
     outliers: dict
     failed_expectations: list
+    total_failed_count: int
+    parsing_error: bool
 
 # ── System Info ──────────────────────────────────────────────────────────────
 class ScanRunSchema(BaseModel):
@@ -73,7 +75,7 @@ class MetricKPIs(BaseModel):
     total_assets: int
     avg_quality_score: float
     rank_a_count: int
-    below_gate_count: int  # score < 70
+    below_gate_count: int  # active assets whose latest quality rank is not "A" (UI: Needs Review)
 
 # ── Audit ────────────────────────────────────────────────────────────────────
 class AuditLogSchema(BaseModel):

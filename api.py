@@ -4,7 +4,7 @@ import boto3
 import io
 import pandas as pd
 import boto3
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Response
 from botocore.exceptions import ClientError
 from data_platform.config import AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, AWS_REGION, AWS_S3_BUCKET
 import json
@@ -14,7 +14,7 @@ from celery.result import AsyncResult
 from worker import process_uploaded_file, celery_app
 from fastapi import Depends
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, and_
 from data_platform.database.connection import SessionLocal
 from data_platform.database import models, schemas
 from typing import List, Optional
@@ -194,46 +194,98 @@ def get_db():
 
 # ── Dashboard API Endpoints ─────────────────────────────────────────────────
 
+def _latest_quality_result_ids_subquery(db: Session):
+    """
+    One quality result_id per active asset: latest evaluated_at, tie-break max(result_id).
+    """
+    inner = (
+        db.query(
+            models.DataQualityResult.asset_id.label("aid"),
+            func.max(models.DataQualityResult.evaluated_at).label("max_ev"),
+        )
+        .join(
+            models.DataAsset,
+            models.DataAsset.asset_id == models.DataQualityResult.asset_id,
+        )
+        .filter(models.DataAsset.is_active.is_(True))
+        .group_by(models.DataQualityResult.asset_id)
+        .subquery()
+    )
+    return (
+        db.query(func.max(models.DataQualityResult.result_id).label("latest_rid"))
+        .select_from(models.DataQualityResult)
+        .join(
+            inner,
+            and_(
+                models.DataQualityResult.asset_id == inner.c.aid,
+                models.DataQualityResult.evaluated_at == inner.c.max_ev,
+            ),
+        )
+        .group_by(models.DataQualityResult.asset_id)
+        .subquery()
+    )
+
+
 @app.get("/api/kpis", tags=["Dashboard"], response_model=schemas.MetricKPIs)
-async def get_kpis(db: Session = Depends(get_db)):
+async def get_kpis(response: Response, db: Session = Depends(get_db)):
     """
     **Get top-level KPIs** for the dashboard header.
     Includes total assets, average quality score, and rank counts.
     """
-    total_assets = db.query(models.DataAsset).filter(models.DataAsset.is_active == True).count()
-    
-    # Average score
-    avg_score = db.query(func.avg(models.DataQualityResult.score)).scalar() or 0.0
-    
-    # Rank A count
-    rank_a = db.query(models.DataQualityResult).filter(models.DataQualityResult.rank == "A").count()
-    
-    # Below Gate (70%)
-    below_gate = db.query(models.DataQualityResult).filter(models.DataQualityResult.score < 70).count()
-    
+    total_assets = db.query(models.DataAsset).filter(models.DataAsset.is_active.is_(True)).count()
+
+    subquery = _latest_quality_result_ids_subquery(db)
+
+    # Average score (latest evaluation per active asset only)
+    avg_score = (
+        db.query(func.avg(models.DataQualityResult.score))
+        .filter(models.DataQualityResult.result_id.in_(subquery))
+        .scalar()
+        or 0.0
+    )
+
+    # Rank A count (latest row per asset is rank A)
+    rank_a = (
+        db.query(models.DataQualityResult)
+        .filter(
+            models.DataQualityResult.result_id.in_(subquery),
+            models.DataQualityResult.rank == "A",
+        )
+        .count()
+    )
+
+    # "Needs Review" in UI: active assets whose latest run is not rank A (includes B/C/D and ungraded)
+    below_gate = (
+        db.query(models.DataQualityResult)
+        .filter(
+            models.DataQualityResult.result_id.in_(subquery),
+            models.DataQualityResult.rank != "A",
+        )
+        .count()
+    )
+
+    response.headers["Cache-Control"] = "no-store"
     return {
         "total_assets": total_assets,
         "avg_quality_score": round(float(avg_score), 1),
         "rank_a_count": rank_a,
-        "below_gate_count": below_gate
+        "below_gate_count": below_gate,
     }
 
 @app.get("/api/assets/quality", tags=["Dashboard"], response_model=List[schemas.AssetQualitySummary])
 async def get_latest_quality(
+    response: Response,
     rank: Optional[str] = None,
     source_id: Optional[int] = None,
     limit: int = 50,
     offset: int = 0,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """
     **Get the latest quality result for all active assets.**
     Supports filtering by rank and source, plus pagination.
     """
-    # Subquery for latest result_id per asset
-    subquery = db.query(
-        func.max(models.DataQualityResult.result_id)
-    ).join(models.DataAsset).filter(models.DataAsset.is_active == True).group_by(models.DataQualityResult.asset_id).subquery()
+    subquery = _latest_quality_result_ids_subquery(db)
 
     query = db.query(
         models.DataAsset.asset_id,
@@ -255,6 +307,7 @@ async def get_latest_quality(
     if source_id:
         query = query.filter(models.DataAsset.source_id == source_id)
 
+    response.headers["Cache-Control"] = "no-store"
     return query.order_by(models.DataQualityResult.score.asc()).offset(offset).limit(limit).all()
 
 @app.get("/api/assets/{asset_id}/quality/drilldown", tags=["Dashboard"], response_model=schemas.QualityDrilldownResponse)
@@ -276,10 +329,12 @@ async def get_quality_drilldown(asset_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="No quality evaluations found for this asset")
 
     # Safely parse the JSON blob
+    parsing_error = False
     try:
         details = json.loads(latest_result.detailed_results_json) if latest_result.detailed_results_json else {}
     except:
         details = {}
+        parsing_error = True
 
     return {
         "asset_id": asset.asset_id,
@@ -289,7 +344,9 @@ async def get_quality_drilldown(asset_id: int, db: Session = Depends(get_db)):
         "evaluated_at": latest_result.evaluated_at,
         "duplicate_rows": latest_result.duplicate_rows,
         "outliers": details.get("outliers", {}),
-        "failed_expectations": details.get("failed_expectations", [])
+        "failed_expectations": details.get("failed_expectations", []),
+        "total_failed_count": details.get("total_failed_count", latest_result.failed_rows),
+        "parsing_error": parsing_error
     }
 
 @app.get("/api/assets/{asset_id}/history", tags=["Dashboard"], response_model=List[schemas.QualityResultSchema])

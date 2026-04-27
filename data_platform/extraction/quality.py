@@ -49,12 +49,16 @@ def generate_generic_suite(context: Any, schema_fields: List[Dict[str, Any]], as
         # Rule 1: Existence
         suite.add_expectation(gx.expectations.ExpectColumnToExist(column=col_name))
         
-        # Rule 2: Universal Null Check (as per user request: check missing rows across all columns)
-        if global_defaults.get("expect_column_values_to_not_be_null", False):
-            suite.add_expectation(gx.expectations.ExpectColumnValuesToNotBeNull(column=col_name))
-        elif field["nullable"] is False:
-            # Fallback to schema inference if not globally enabled
-            suite.add_expectation(gx.expectations.ExpectColumnValuesToNotBeNull(column=col_name))
+        # Rule 2: Aggressive Null & Empty Check
+        # 1. Standard Null Check (catch NaN/None)
+        suite.add_expectation(gx.expectations.ExpectColumnValuesToNotBeNull(column=col_name))
+        
+        # 2. Content Check for Text Columns (catch "", " ", "null", "n/a")
+        if "string" in field["data_type"].lower() or "object" in field["data_type"].lower():
+             # Catch whitespace-only strings
+             suite.add_expectation(gx.expectations.ExpectColumnValuesToMatchRegex(column=col_name, regex=r"^(?!\s*$).+"))
+             # Catch common string-placeholders
+             suite.add_expectation(gx.expectations.ExpectColumnValuesToNotBeInSet(column=col_name, value_set=["null", "NULL", "n/a", "N/A", "nan", "NaN"]))
             
         # Rule 3: Enforce Types (Rule-based vs Inferred)
         enforced_type = None
@@ -166,12 +170,18 @@ def evaluate_quality(db: Session, asset: DataAsset, df_sample: pd.DataFrame, sch
                 print(f"[WARNING] {msg}")
 
         failed_results = [res.to_json_dict() for res in validation_results.results if not res.success]
+        
+        # Safely limit the number of failed results to prevent database bloat/truncation issues
+        # while keeping the JSON valid for the frontend.
+        limited_failed_results = failed_results[:50]
+        
         extras = {
-            "failed_expectations": failed_results,
+            "failed_expectations": limited_failed_results,
             "outliers": outliers,
             "duplicate_rows": dup_count,
+            "total_failed_count": len(failed_results)
         }
-
+        
         quality_result = DataQualityResult(
             asset_id=asset.asset_id,
             scan_run_id=scan_run_id,
@@ -180,7 +190,7 @@ def evaluate_quality(db: Session, asset: DataAsset, df_sample: pd.DataFrame, sch
             total_rows=len(df_sample),
             failed_rows=len(failed_results),
             duplicate_rows=dup_count,
-            detailed_results_json=json.dumps(extras)[:4000],
+            detailed_results_json=json.dumps(extras),
         )
         db.add(quality_result)
         db.commit()

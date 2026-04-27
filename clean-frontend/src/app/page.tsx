@@ -48,10 +48,11 @@ export default function ModernDashboard() {
 
   const fetchData = async () => {
     try {
+      const noStore = { cache: 'no-store' as RequestCache };
       const [k, a, au] = await Promise.all([
-        fetch(`${API_URL}/api/kpis`).then(r => r.json()),
-        fetch(`${API_URL}/api/assets/quality`).then(r => r.json()),
-        fetch(`${API_URL}/api/audit-logs?limit=5`).then(r => r.json())
+        fetch(`${API_URL}/api/kpis`, noStore).then(r => r.json()),
+        fetch(`${API_URL}/api/assets/quality`, noStore).then(r => r.json()),
+        fetch(`${API_URL}/api/audit-logs?limit=5`, noStore).then(r => r.json())
       ]);
       setKpis(k); setAssets(a); setAudits(au);
     } catch (err) {
@@ -288,7 +289,7 @@ export default function ModernDashboard() {
                     <h3 style={{ marginBottom: '1rem', color: '#dc2626' }}>Rule Violations ({drilldownData.failed_expectations.length})</h3>
                     <div style={{ display: 'grid', gap: '1rem' }}>
                       {drilldownData.failed_expectations.map((rule: any, idx: number) => {
-                        const expectationType = rule.expectation_config?.expectation_type || "Custom Validator";
+                        const expectationType = rule.expectation_config?.expectation_type || rule.expectation_config?.type || "Custom Validator";
                         const kwargs = rule.expectation_config?.kwargs || {};
                         const colName = kwargs.column || "Dataset";
                         let unexpectedList = rule.result?.partial_unexpected_list || rule.result?.unexpected_list || [];
@@ -313,6 +314,12 @@ export default function ModernDashboard() {
                           unexpectedList = unexpectedList.filter((v: any) => v === null || v === undefined || String(v).trim() === '' || String(v).toLowerCase() === 'nan');
                         } else if (expectationType === 'expect_column_to_exist') {
                           explanation = `Schema validation enforced. The required column '${colName}' is missing entirely from the dataset.`;
+                        } else if (expectationType === 'expect_column_values_to_not_be_in_set') {
+                          explanation = `Forbidden placeholder detected. The column '${colName}' contained values from the restricted list: ['null', 'n/a', 'nan', 'NULL', 'N/A', 'NaN']. These were flagged as invalid data.`;
+                        } else if (expectationType === 'expect_column_values_to_match_regex') {
+                          explanation = `Strict text validation enforced. The column '${colName}' was expected to contain meaningful text, but cells containing only whitespace, empty strings, or invalid date formats were found.`;
+                        } else if (expectationType === 'expect_column_values_to_be_in_type_list') {
+                          explanation = `Numeric safety enforced. The column '${colName}' was expected to contain valid numbers (e.g. integers or decimals), but text characters or symbols (like '$' or ',') were found.`;
                         }
 
                         // Fallback if unexpectedList is empty after heuristic filtering
@@ -363,10 +370,23 @@ export default function ModernDashboard() {
                   </div>
                 )}
 
-                {drilldownData && drilldownData.failed_expectations?.length === 0 && Object.keys(drilldownData.outliers || {}).length === 0 && (
+                {drilldownData && (drilldownData.total_failed_count || 0) === 0 && Object.keys(drilldownData.outliers || {}).length === 0 && (
                   <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--muted-foreground)' }}>
                     <CheckCircle size={48} color="#16a34a" style={{ margin: '0 auto 1rem auto' }} />
                     <p>Perfect score! No rule violations or outliers found.</p>
+                  </div>
+                )}
+
+                {drilldownData && (drilldownData.total_failed_count || 0) > 0 && drilldownData.failed_expectations?.length === 0 && (
+                  <div style={{ textAlign: 'center', padding: '2rem', background: '#fff7ed', borderRadius: '12px', border: '1px solid #ffedd5', color: '#9a3412' }}>
+                    <AlertTriangle size={48} color="#f97316" style={{ margin: '0 auto 1rem auto' }} />
+                    <p style={{ fontWeight: 600 }}>Detailed results unavailable</p>
+                    <p style={{ fontSize: '0.875rem' }}>
+                      {drilldownData.parsing_error 
+                        ? "The raw validation data was too large and became corrupted. "
+                        : "Detailed logs were truncated during processing. "}
+                      However, the system still detected <strong>{drilldownData.total_failed_count}</strong> rule violations which impacted the quality score.
+                    </p>
                   </div>
                 )}
 
@@ -574,7 +594,7 @@ export default function ModernDashboard() {
             <h3>Total Assets</h3>
             <Database className="upload-icon" size={20} />
           </div>
-          <p style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--foreground)' }}>{kpis?.total_assets || '-'}</p>
+          <p style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--foreground)' }}>{kpis?.total_assets ?? '-'}</p>
         </div>
         
         <div className="card flex flex-col justify-between">
@@ -583,7 +603,7 @@ export default function ModernDashboard() {
             <Activity className="upload-icon" size={20} />
           </div>
           <p style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--foreground)' }}>
-            {kpis?.avg_quality_score ? `${kpis.avg_quality_score}%` : '-'}
+            {kpis?.avg_quality_score !== undefined ? `${kpis.avg_quality_score}%` : '-'}
           </p>
         </div>
 
@@ -592,7 +612,7 @@ export default function ModernDashboard() {
             <h3>Rank A Assets</h3>
             <CheckCircle className="upload-icon" size={20} color="#16a34a" />
           </div>
-          <p style={{ fontSize: '2rem', fontWeight: 700, color: '#16a34a' }}>{kpis?.rank_a_count || '-'}</p>
+          <p style={{ fontSize: '2rem', fontWeight: 700, color: '#16a34a' }}>{kpis?.rank_a_count ?? '-'}</p>
         </div>
 
         <div className="card flex flex-col justify-between">
@@ -600,7 +620,7 @@ export default function ModernDashboard() {
             <h3>Needs Review</h3>
             <AlertTriangle className="upload-icon" size={20} color="#dc2626" />
           </div>
-          <p style={{ fontSize: '2rem', fontWeight: 700, color: '#dc2626' }}>{kpis?.below_gate_count || '-'}</p>
+          <p style={{ fontSize: '2rem', fontWeight: 700, color: '#dc2626' }}>{kpis?.below_gate_count ?? '-'}</p>
         </div>
       </div>
 
