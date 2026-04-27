@@ -138,9 +138,10 @@ python -c "from models import Base, engine; Base.metadata.create_all(engine)"
 # Start the FastAPI server
 python api.py
 
-# API available at http://localhost:8000/docs
+# API available at 
+http://localhost:8000/docs
 ```
-
+ 
 ### Worker Setup
 
 The Celery worker must be started in a separate terminal process:
