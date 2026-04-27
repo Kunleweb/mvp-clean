@@ -1,5 +1,5 @@
 # CLEAN Framework: Technical Specification
-### Data Observability, Governance, and Automated Extraction
+### Data Quality Governance and RAG Extraction 
 
 The CLEAN Framework is a specialized system for managing the lifecycle of diverse data assets. It automates the transition from unstructured document formats to validated, governed datasets through a distributed pipeline.
 
