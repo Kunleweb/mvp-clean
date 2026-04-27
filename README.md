@@ -3,15 +3,11 @@
 
 The CLEAN Framework is a specialized system for managing the lifecycle of diverse data assets. It automates the transition from unstructured document formats to validated, governed datasets through a distributed pipeline.
 
----
-
 ## System Architecture
 
 The framework is built on a decoupled architecture using FastAPI for API routing, Celery for task orchestration, and AWS S3 as the primary data lake.
 
 ![Architecture](img/1.png)
- 
----
 
 ## Component Deep Dive
 
@@ -52,7 +48,6 @@ A responsive dashboard designed for real-time monitoring and interactive data ma
 *   **Interactive Exploration**: Features a custom-built data grid that enables direct cell editing with integrated serialization back to the core storage layer.
 *   **Analytical Reporting**: Leverages integrated visualization tools to present quality trends and health distributions across all registered data assets.
 
----
 
 ## Detailed Data Flow
 
@@ -64,7 +59,6 @@ A responsive dashboard designed for real-time monitoring and interactive data ma
 6.  **Persist**: The quality score (80%) and rank (B) are saved to PostgreSQL. The extracted CSV is saved back to S3.
 7.  **Govern**: The user sees the rank B, opens the Data Explorer, fixes the missing values, and saves with the note "Manual correction of extraction error."
 
----
 
 ## Data Quality Scoring
 
@@ -86,7 +80,6 @@ Final Score = max(Base Score - Outlier Penalty - Hidden Null Penalty, 0)
 *   **Infrastructure**: AWS S3, Redis (Broker), PostgreSQL (Metadata).
 *   **Intelligence**: LandingAI ADE (Computer Vision).
 
----
 
 ## Installation and Setup
 
@@ -178,8 +171,6 @@ npm run dev
 npm run build && npm start
 ```
 
----
-
 ## Containerized Deployment (Docker)
 
 The CLEAN Framework includes a `docker-compose.yml` configuration for spinning up the core backend infrastructure (API, Worker, and Redis) without manual dependency installation.
@@ -200,8 +191,6 @@ This will:
 
 > [!NOTE]
 > The frontend application currently runs outside of the Docker compose environment. Follow the **Frontend Setup** instructions above to start the dashboard.
-
----
 
 ## Design Decisions
 
