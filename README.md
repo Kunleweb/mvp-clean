@@ -9,9 +9,7 @@ The CLEAN Framework is a specialized system for managing the lifecycle of divers
 
 The framework is built on a decoupled architecture using FastAPI for API routing, Celery for task orchestration, and AWS S3 as the primary data lake.
 
-``` 
-[!Architecture](C:\Users\owner\Desktop\CLEAN\mvp\img\1.png)
-```
+![Architecture](img/1.png)
  
 ---
 
