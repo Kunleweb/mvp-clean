@@ -100,7 +100,7 @@ Copy the example environment file and populate all required values:
 
 ```bash
 cd mvp
-cp .env.example .env
+cp .env
 ```
 
 The `.env` file requires the following variables:
