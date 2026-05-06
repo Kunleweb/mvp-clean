@@ -1,7 +1,4 @@
 # CLEAN Framework: Technical Specification
-### Data Quality Governance and RAG Extraction 
-
-The CLEAN Framework is a specialized system for managing the lifecycle of diverse data assets. It automates the transition from unstructured document formats to validated, governed datasets through a distributed pipeline.
 
 ## System Architecture
 
@@ -13,28 +10,30 @@ The framework is built on a decoupled architecture using FastAPI for API routing
 
 ### 1. Ingestion Layer
 The entry point for all data operations, managing the lifecycle of incoming datasets from various sources.
-*   **Data Streaming**: Facilitates secure multi-part uploads directly to cloud storage. It implements strict validation on file sizes and automatically categorizes assets into organized storage prefixes based on format.
-*   **External Connectivity**: Includes specialized adapters for third-party APIs. These components fetch external data, serialize the payloads, and persist them to the landing zone before initiating the processing pipeline.
-*   **Asynchronous Tracking**: Interfaces with the message broker to provide real-time updates on background task progression.
-*   **Data Access Interface**: Provides high-performance endpoints for reading raw storage objects and converting them into structured formats for interactive exploration.
+*   **Data Upload**: Facilitates secure multi-part uploads directly to cloud storage. It implements strict validation on file sizes and automatically categorizes assets into organized storage prefixes based on format.
+*   **API Ingestion**: Fetches external data using adapters for third-party APIs. 
+*   **Real-time Updates**: Interfaces with the message broker to provide real-time updates on background task progression.
+
 
 ### 2. Task Orchestration
 A distributed processing system that manages the lifecycle of ingested files across a scalable worker cluster.
+
 *   **State Management**: Tracks and broadcasts the status of each pipeline stage: from initial download to final validation: ensuring end-to-end observability.
 *   **Dynamic Routing**: Automatically detects file types to determine the optimal processing path. Unstructured documents are routed through vision-based extraction, while structured datasets proceed directly to alignment.
 *   **Transaction Integrity**: Ensures every execution is recorded, maintaining a consistent state and logging failures for rapid troubleshooting.
 
 ### 3. Data Extraction & Alignment
 The core transformation engine that converts raw inputs into standardized datasets.
-*   **Intelligent Parsing**: Utilizes vision models to extract structured key-value pairs and tabular data from unstructured sources. It also generates searchable text artifacts to facilitate full-text indexing.
+*   **Intelligent Parsing**: Utilizes landingAI to extract structured key-value pairs and tabular data from unstructured sources. It also generates searchable text artifacts to facilitate full-text indexing. 
 *   **Structural Optimization**: Employs hashing algorithms to detect structural consistency. If a dataset's structure remains unchanged, the system optimizes performance by utilizing cached metadata.
 *   **Normalization Engine**: A multi-stage transformation module that performs heuristic date standardization, column aliasing to match internal naming conventions, and semantic value mapping to ensure consistency across the data lake.
 
 ### 4. Validation & Quality Control
-A rigorous quality assurance engine that enforces data integrity and compliance.
+Uses great expectations to validate the data. A rigorous quality rule library that enforces data integrity and compliance.  
+
 *   **Dynamic Rule Generation**: Automatically constructs validation suites in memory based on the detected dataset structure, ensuring rules remain aligned with the data without manual intervention.
 *   **Statistical Analysis**: Implements advanced outlier detection to identify values that deviate significantly from expected statistical norms.
-*   **Structural Integrity Checks**: Uses pattern matching to identify missing values, whitespace-only fields, and non-standard placeholders that would otherwise bypass traditional null checks.
+*   **Structural Integrity Checks**: Uses pattern matching to identify missing values, whitespace-only fields, and non-standard placeholders that would otherwise bypass traditional null checks. 
 *   **Quality Gating**: Evaluates assets against configurable thresholds, assigning health ranks and determining whether a dataset should be rejected or flagged for manual review.
 
 ### 5. Data Governance & Audit
