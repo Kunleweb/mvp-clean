@@ -81,6 +81,11 @@ def generate_generic_suite(context: Any, schema_fields: List[Dict[str, Any]], as
         elif "datetime" in dtype_to_check.lower():
             pass # Skipping complex date validaton
             
+    # Rule 4: Enforce unique rows (prevent exact duplicates)
+    col_names = [field["field_name"] for field in schema_fields]
+    if col_names:
+        suite.add_expectation(gx.expectations.ExpectCompoundColumnsToBeUnique(column_list=col_names))
+            
     return suite_name
 
 

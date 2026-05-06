@@ -437,7 +437,14 @@ async def preview_asset_data(asset_id: int, limit: int = 100, offset: int = 0, d
         content = response['Body'].read()
         
         if str(asset.location_ref).endswith('.json'):
-            df = pd.read_json(io.BytesIO(content))
+            try:
+                df = pd.read_json(io.BytesIO(content))
+            except Exception:
+                return {
+                    "columns": [],
+                    "rows": [],
+                    "raw_text": content.decode('utf-8', errors='replace')
+                }
         elif str(asset.location_ref).endswith('.md'):
             # Return empty structure for MD, raw_text will be populated below
             return {

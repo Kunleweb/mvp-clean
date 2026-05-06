@@ -1,5 +1,4 @@
 import hashlib
-import json
 import pandas as pd
 import os
 from pathlib import Path
@@ -8,7 +7,6 @@ from sqlalchemy import desc
 from sqlalchemy.orm import Session
 from data_platform.database.models import DataAsset, SchemaSnapshot, SchemaField, DataSource
 from data_platform.extraction.quality import evaluate_quality
-from data_platform.ingestion.scanner import fetch_api_data, API_CACHE_DIR
 from data_platform.transformation.tidier import align
 
 def calculate_file_hash(file_path: str) -> str:
@@ -31,7 +29,10 @@ def extract_schema_metadata(asset: DataAsset, nrows: int = 1000, fetch_fresh: bo
             if file_path.lower().endswith('.csv'):
                 df = pd.read_csv(file_path, nrows=nrows)
             elif file_path.lower().endswith('.json'):
-                df = pd.read_json(file_path)
+                try:
+                    df = pd.read_json(file_path)
+                except ValueError:
+                    df = pd.read_json(file_path, lines=True)
                 if len(df) > nrows:
                     df = df.head(nrows)
             elif file_path.lower().endswith(('.pdf', '.png', '.jpg', '.jpeg')):
@@ -65,31 +66,6 @@ def extract_schema_metadata(asset: DataAsset, nrows: int = 1000, fetch_fresh: bo
                 print(f"Unsupported file format for {file_path}")
                 return [], None
         
-        elif source.source_type == "rest_api":
-            safe_name = asset.asset_name.replace(" ", "_")
-            cache_file = API_CACHE_DIR / f"{safe_name}_api.json"
-            
-            if not fetch_fresh and cache_file.exists():
-                print(f"[{asset.asset_name}] Loading from cache: {cache_file.name}")
-                with open(cache_file, "r") as f:
-                    data = json.load(f)
-            else:
-                print(f"[{asset.asset_name}] Fetching fresh data from API...")
-                data = fetch_api_data(asset)
-                API_CACHE_DIR.mkdir(parents=True, exist_ok=True)
-                with open(cache_file, "w") as f:
-                    json.dump(data, f, indent=2)
-                print(f"[{asset.asset_name}] Saved to cache: {cache_file.name}")
-            
-            if "Time Series (Daily)" in data:
-                raw_data = data["Time Series (Daily)"]
-                formatted_data = [{"date": d, **values} for d, values in raw_data.items()]
-                df = pd.DataFrame(formatted_data)
-            else:
-                df = pd.DataFrame([data] if isinstance(data, dict) else data)
-                
-            if len(df) > nrows:
-                df = df.head(nrows)
         else:
             return [], None
 

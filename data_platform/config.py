@@ -7,10 +7,6 @@ load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///metadata.db")
 CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL")
 
-DATA_SOURCE_PATH = "./data"
-DATA_SOURCE_NAME = "Local CSV Folder"
-SCAN_COOLDOWN_SECONDS = 2
-
 # RapidAPI Settings
 RAPIDAPI_KEY = os.getenv("RAPIDAPI_KEY")
 ALPHA_VANTAGE_HOST = "alpha-vantage.p.rapidapi.com"

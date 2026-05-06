@@ -320,6 +320,8 @@ export default function ModernDashboard() {
                           explanation = `Strict text validation enforced. The column '${colName}' was expected to contain meaningful text, but cells containing only whitespace, empty strings, or invalid date formats were found.`;
                         } else if (expectationType === 'expect_column_values_to_be_in_type_list') {
                           explanation = `Numeric safety enforced. The column '${colName}' was expected to contain valid numbers (e.g. integers or decimals), but text characters or symbols (like '$' or ',') were found.`;
+                        } else if (expectationType === 'expect_compound_columns_to_be_unique') {
+                          explanation = `Exact duplicate rows detected. These rows are completely identical across all columns and have been penalized.`;
                         }
 
                         // Fallback if unexpectedList is empty after heuristic filtering
@@ -426,7 +428,7 @@ export default function ModernDashboard() {
               </div>
             ) : (
               <div className="flex-col gap-4">
-                {(explorerData.columns.length === 0 && !selectedAsset?.asset_name?.toLowerCase().endsWith('.md')) ? (
+                {(explorerData.columns.length === 0 && !selectedAsset?.asset_name?.toLowerCase().endsWith('.md') && !selectedAsset?.asset_name?.toLowerCase().endsWith('.json')) ? (
                   <p style={{ textAlign: 'center', padding: '3rem', color: 'var(--muted-foreground)' }}>No data available for preview. Please wait or check the logs.</p>
                 ) : (
                   <div>

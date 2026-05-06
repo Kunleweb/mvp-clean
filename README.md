@@ -96,12 +96,7 @@ Ensure the following are available on your system before proceeding:
 
 ### Environment Configuration
 
-Copy the example environment file and populate all required values:
-
-```bash
-cd mvp
-cp .env
-```
+Create a `.env` file in the project root and populate all required values:
 
 The `.env` file requires the following variables:
 
@@ -109,18 +104,19 @@ The `.env` file requires the following variables:
 # AWS Configuration
 AWS_ACCESS_KEY_ID=your_access_key_id
 AWS_SECRET_ACCESS_KEY=your_secret_access_key
-AWS_DEFAULT_REGION=eu-west-2
-S3_BUCKET_NAME=your_bucket_name
+AWS_REGION=eu-west-2
+S3=your_bucket_name
 
 # LandingAI Configuration
 VISION_AGENT_API_KEY=your_landing_ai_key
 
 # Database Configuration
-DATABASE_URL=postgresql://*** 
+DATABASE_URL=postgresql://user:password@host:5432/dbname
+CELERY_BROKER_URL=redis://redis:6379/0
 
 
 # External APIs (optional)
-ALPHA_VANTAGE_API_KEY=your_alpha_vantage_key 
+RAPIDAPI_KEY=your_alpha_vantage_key
 ```
 
 ### Backend Setup
@@ -132,14 +128,14 @@ cd mvp
 # Install Python dependencies
 pip install -r requirements.txt
 
-# Initialise the PostgreSQL database (runs SQLAlchemy migrations)
-python -c "from models import Base, engine; Base.metadata.create_all(engine)"
+# Initialise the database tables
+python -c "from data_platform.database.connection import Base, engine; from data_platform.database import models; Base.metadata.create_all(bind=engine)"
 
 # Start the FastAPI server
-python api.py
+uvicorn api:app --host 0.0.0.0 --port 8001 --reload
 
 # API available at 
-http://localhost:8000/docs
+http://localhost:8001/docs
 ```
  
 ### Worker Setup
